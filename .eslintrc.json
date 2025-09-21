@@ -1,0 +1,10 @@
+{
+  "overrides": [
+    {
+      "files": ["*.config.js", "*.config.mjs"],
+      "rules": {
+        "import/no-anonymous-default-export": "off"
+      }
+    }
+  ]
+}
