@@ -1,4 +1,4 @@
-// contexts/AuthContext.tsx
+// Updated contexts/AuthContext.tsx - Store tokens in cookies
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
@@ -32,21 +32,43 @@ interface RegisterData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Cookie helper functions
+const setCookie = (name: string, value: string, days: number = 7) => {
+  const expires = new Date();
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;secure;samesite=strict`;
+};
+
+const getCookie = (name: string): string | null => {
+  if (typeof document === "undefined") return null;
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(";");
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === " ") c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+};
+
+const deleteCookie = (name: string) => {
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
+    const token = getCookie("accessToken");
     if (token) {
-      // Verify token and get user info
       authService
         .getProfile()
         .then(setUser)
         .catch(() => {
-          localStorage.removeItem("accessToken");
-          localStorage.removeItem("refreshToken");
+          deleteCookie("accessToken");
+          deleteCookie("refreshToken");
         })
         .finally(() => setLoading(false));
     } else {
@@ -56,43 +78,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const { user, accessToken, refreshToken } = await authService.login(
-        email,
-        password
-      );
-      localStorage.setItem("accessToken", accessToken);
-      localStorage.setItem("refreshToken", refreshToken);
-      setUser(user);
-      toast.success("Login successful!");
-      router.push("/dashboard");
+      const response = await authService.login(email, password);
+      console.log("Login response:", response);
+
+      const { user, accessToken, refreshToken } = response;
+
+      if (accessToken && refreshToken) {
+        // Store in cookies (middleware can access these)
+        setCookie("accessToken", accessToken, 7); // 7 days
+        setCookie("refreshToken", refreshToken, 30); // 30 days
+
+        setUser(user);
+        toast.success("Login successful!");
+        router.push("/dashboard");
+      } else {
+        throw new Error("Invalid response from server");
+      }
     } catch (error: any) {
-      toast.error(error.message || "Login failed");
+      console.error("Login error:", error);
+      const errorMessage =
+        error?.response?.data?.message || error.message || "Login failed";
+      toast.error(errorMessage);
       throw error;
     }
   };
 
   const register = async (data: RegisterData) => {
     try {
-      const { user, accessToken, refreshToken } = await authService.register(
-        data
-      );
-      localStorage.setItem("accessToken", accessToken);
-      localStorage.setItem("refreshToken", refreshToken);
-      setUser(user);
-      toast.success("Registration successful!");
-      router.push("/dashboard");
+      const response = await authService.register(data);
+      console.log("Register response:", response);
+
+      const { user, accessToken, refreshToken } = response;
+
+      if (accessToken && refreshToken) {
+        // Store in cookies (middleware can access these)
+        setCookie("accessToken", accessToken, 7); // 7 days
+        setCookie("refreshToken", refreshToken, 30); // 30 days
+
+        setUser(user);
+        toast.success("Registration successful!");
+        router.push("/dashboard");
+      } else {
+        throw new Error("Invalid response from server");
+      }
     } catch (error: any) {
-      toast.error(error.message || "Registration failed");
+      console.error("Register error:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error.message ||
+        "Registration failed";
+      toast.error(errorMessage);
       throw error;
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    setUser(null);
-    router.push("/auth/login");
-    toast.success("Logged out successfully");
+  const logout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      deleteCookie("accessToken");
+      deleteCookie("refreshToken");
+      setUser(null);
+      router.push("/auth/login");
+      toast.success("Logged out successfully");
+    }
   };
 
   return (

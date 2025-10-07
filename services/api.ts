@@ -1,8 +1,9 @@
-// services/api.ts
+// Updated services/api.ts - Read tokens from cookies
 import axios from "axios";
 import toast from "react-hot-toast";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -11,9 +12,22 @@ export const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Helper to get cookie value
+const getCookieValue = (name: string): string | null => {
+  if (typeof document === "undefined") return null;
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(";");
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === " ") c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+};
+
+// Request interceptor to add auth token from cookies
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("accessToken");
+  const token = getCookieValue("accessToken");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -30,20 +44,26 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem("refreshToken");
+        const refreshToken = getCookieValue("refreshToken");
         if (refreshToken) {
           const response = await axios.post(`${API_URL}/auth/refresh`, {
             refreshToken,
           });
 
           const { accessToken } = response.data;
-          localStorage.setItem("accessToken", accessToken);
+          // Update cookie
+          const expires = new Date();
+          expires.setTime(expires.getTime() + 7 * 24 * 60 * 60 * 1000);
+          document.cookie = `accessToken=${accessToken};expires=${expires.toUTCString()};path=/;secure;samesite=strict`;
 
           return api(originalRequest);
         }
       } catch (refreshError) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
+        // Clear cookies
+        document.cookie =
+          "accessToken=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;";
+        document.cookie =
+          "refreshToken=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;";
         window.location.href = "/auth/login";
         return Promise.reject(refreshError);
       }

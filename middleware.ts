@@ -1,12 +1,10 @@
-// middleware.ts
+// Updated middleware.ts - Now works with cookies
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
-  // Check if user is authenticated
-  const token =
-    request.cookies.get("accessToken")?.value ||
-    request.headers.get("authorization")?.replace("Bearer ", "");
+  // Check if user is authenticated - middleware can access cookies
+  const token = request.cookies.get("accessToken")?.value;
 
   // If accessing auth pages and already authenticated, redirect to dashboard
   if (request.nextUrl.pathname.startsWith("/auth/") && token) {
@@ -15,7 +13,7 @@ export function middleware(request: NextRequest) {
 
   // If accessing protected pages without authentication, redirect to login
   const protectedPaths = [
-    "/dashboard",
+    "/dashboard", // Add this back - now it will work!
     "/meetings",
     "/search",
     "/analytics",

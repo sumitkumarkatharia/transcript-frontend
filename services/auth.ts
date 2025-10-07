@@ -1,7 +1,8 @@
-// services/auth.ts
+// Fixed services/auth.ts
 import { api } from "./api";
 
 interface LoginResponse {
+  message: string;
   user: any;
   accessToken: string;
   refreshToken: string;
@@ -15,13 +16,15 @@ interface RegisterData {
 }
 
 export const authService = {
+  // ✅ FIXED: Correct login endpoint
   async login(email: string, password: string): Promise<LoginResponse> {
-    const response = await api.post("/auth/signin", { email, password });
+    const response = await api.post("/auth/login", { email, password });
     return response.data;
   },
 
+  // ✅ FIXED: Correct register endpoint
   async register(data: RegisterData): Promise<LoginResponse> {
-    const response = await api.post("/auth/signup", data);
+    const response = await api.post("/auth/register", data);
     return response.data;
   },
 
@@ -35,10 +38,11 @@ export const authService = {
     return response.data;
   },
 
+  // ✅ FIXED: Correct logout endpoint
   async logout() {
     const refreshToken = localStorage.getItem("refreshToken");
     if (refreshToken) {
-      await api.post("/auth/signout", { refreshToken });
+      await api.post("/auth/logout", { refreshToken });
     }
   },
 };
